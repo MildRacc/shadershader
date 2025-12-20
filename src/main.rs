@@ -1,5 +1,5 @@
 use glium::{Surface};
-use std::{env, fs::{self, metadata}, io::{self, ErrorKind, Read}, path::{self, Path, PathBuf}, str::FromStr};
+use std::{env, fs::{self, metadata}, io::{self, ErrorKind, Read}, path::{self, Path, PathBuf}, str::FromStr, time::{Duration, SystemTime}};
 
 
 
@@ -35,25 +35,15 @@ fn main() {
 
 
 
-    let vert_source = load_shader(vert_path.as_str()).unwrap();
-    let frag_source = load_shader(frag_path.as_str()).unwrap();
+    let mut vert_source = load_shader(vert_path.as_str()).unwrap();
+    let mut frag_source = load_shader(frag_path.as_str()).unwrap();
 
-    let vert_shader = vert_source.as_str();
-    let frag_shader = frag_source.as_str();
+    let mut vert_shader = vert_source.as_str();
+    let mut frag_shader = frag_source.as_str();
 
+    let mut meta_time: SystemTime = SystemTime::now(); 
 
-    println!("{vert_shader}");
-    println!("{frag_shader}");
-
-    match fs::metadata(vert_path.as_str())
-    {
-        Ok(m) =>
-        {
-            m.modified().unwrap().elapsed().unwrap().as_secs()
-        }
-    }
-
-    let program = glium::Program::from_source(&display, vert_shader, frag_shader, None).unwrap();
+    let mut program = glium::Program::from_source(&display, vert_shader, frag_shader, None).unwrap();
 
     let mut time: f32 = 0.0;
     let _ = event_loop.run(move |event, window_target|
@@ -96,6 +86,17 @@ fn main() {
 
             glium::winit::event::Event::AboutToWait =>
             {
+                if check_shader_refresh(&vert_path, &frag_path, &mut meta_time)
+                {
+                    
+                    vert_source = load_shader(vert_path.as_str()).unwrap();
+                    frag_source = load_shader(frag_path.as_str()).unwrap();
+
+                    meta_time= SystemTime::now(); 
+
+                    program = glium::Program::from_source(&display, &vert_source.as_str(), &frag_source.as_str(), None).unwrap();
+                }
+
                 window.request_redraw();    
             },
 
@@ -196,11 +197,29 @@ fn expand_tilde(path: String) -> String
 }
 
 
-fn check_shader_refresh(vert: String, frag: String) -> (bool, u64)
+fn check_shader_refresh(vert: &String, frag: &String, time: &mut SystemTime) -> bool
 {
 
     let vert_met = metadata(vert).unwrap();
-    
+    let frag_met = metadata(frag).unwrap();
+    let mut modified = vert_met.modified().unwrap();
 
+    if modified > *time
+    {
+        *time = modified;
+        return true;
+    }
+
+    modified = frag_met.modified().unwrap();
+
+    if modified > *time
+    {
+        *time = modified;
+        return true;
+    }
+
+
+
+    false
 
 }
