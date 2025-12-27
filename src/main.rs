@@ -1,5 +1,5 @@
 use glium::{Surface};
-use std::{env, fs::{self, metadata}, io::{self, ErrorKind}, path::{Path, PathBuf}, time::{SystemTime}};
+use std::{env, fs::{self, metadata}, io::{self, ErrorKind}, path::{Path, PathBuf}, time::{SystemTime, Instant}};
 
 
 
@@ -45,7 +45,7 @@ fn main() {
 
     let mut program = glium::Program::from_source(&display, vert_shader, frag_shader, None).unwrap();
 
-    let mut time: f32 = 0.0;
+    let start_time = Instant::now();
     let _ = event_loop.run(move |event, window_target|
     {
 
@@ -57,7 +57,7 @@ fn main() {
                 glium::winit::event::WindowEvent::RedrawRequested =>
                 {
 
-                    time += 0.02;
+                    let time = start_time.elapsed().as_secs_f32();
 
                     let uniforms = uniform!
                     {
