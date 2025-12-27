@@ -1,13 +1,13 @@
 #version 330
 
 in vec2 position;
-in vec3 color;
-out vec3 vertex_color;
+out vec2 pos;
 
-uniform mat4 transform;
+uniform float iTime;
+uniform vec3 iResolution;
 
 void main()
 {
-    vertex_color = color;
-    gl_Position = transform * vec4(position, 0.0, 1.0);
+    pos = position;
+    gl_Position = vec4(position, 0.0, 1.0);
 }

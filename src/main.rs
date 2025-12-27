@@ -1,5 +1,5 @@
 use glium::{Surface};
-use std::{env, fs::{self, metadata}, io::{self, ErrorKind, Read}, path::{self, Path, PathBuf}, str::FromStr, time::{Duration, SystemTime}};
+use std::{env, fs::{self, metadata}, io::{self, ErrorKind}, path::{Path, PathBuf}, time::{SystemTime}};
 
 
 
@@ -7,9 +7,8 @@ use std::{env, fs::{self, metadata}, io::{self, ErrorKind, Read}, path::{self, P
 struct Vertex
 {
     position: [f32; 2],
-    color: [f32; 3]
 }
-implement_vertex!(Vertex, position, color);
+implement_vertex!(Vertex, position);
 
 
 #[macro_use]
@@ -21,25 +20,26 @@ fn main() {
 
     let event_loop = glium::winit::event_loop::EventLoopBuilder::new().build().expect("Event loop building");
     let ( window, display ) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
-  
 
-    // Triangle
-    let vert1 = Vertex { position: [ 0.0,  0.5 ], color: [1.0, 0.0, 0.0] };
-    let vert2 = Vertex { position: [-0.5, -0.5 ], color: [0.0, 1.0, 0.0] };
-    let vert3 = Vertex { position: [ 0.5, -0.25], color: [0.0, 0.0, 1.0] };
-    let shape = vec![vert1, vert2, vert3];
+    window.set_title("ShaderShader");
+
+    let vert1 = Vertex { position: [ -1.0, -1.0 ]};
+    let vert2 = Vertex { position: [ -1.0,  1.0 ]};
+    let vert3 = Vertex { position: [  1.0, -1.0 ]};
+    let vert4 = Vertex { position: [  1.0,  1.0 ]};
+    let shape = vec![vert1, vert2, vert3, vert4];
 
     let vert_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
     
-    let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
+    let indices = glium::index::IndexBuffer::new(&display, glium::index::PrimitiveType::TriangleStrip, &[0u16, 1, 2, 3]).unwrap();
 
 
 
-    let mut vert_source = load_shader(vert_path.as_str()).unwrap();
-    let mut frag_source = load_shader(frag_path.as_str()).unwrap();
+    let vert_source = load_shader(vert_path.as_str()).unwrap();
+    let frag_source = load_shader(frag_path.as_str()).unwrap();
 
-    let mut vert_shader = vert_source.as_str();
-    let mut frag_shader = frag_source.as_str();
+    let vert_shader = vert_source.as_str();
+    let frag_shader = frag_source.as_str();
 
     let mut meta_time: SystemTime = SystemTime::now(); 
 
@@ -61,13 +61,8 @@ fn main() {
 
                     let uniforms = uniform!
                     {
-                        transform: [
-                            [time.cos(), time.sin(), 0.0, 0.0],
-                            [-time.sin(), time.cos(), 0.0, 0.0],
-                            [0.0, 0.0, 1.0, 0.0],
-                            [0.0 ,0.0, 0.0, 1.0f32]
-                        ]
-
+                        iTime: time,
+                        iResolution: [window.inner_size().width as f32, window.inner_size().height as f32, 1.0],
                     };
                 
                     let mut target = display.draw();
@@ -88,13 +83,16 @@ fn main() {
             {
                 if check_shader_refresh(&vert_path, &frag_path, &mut meta_time)
                 {
-                    
-                    vert_source = load_shader(vert_path.as_str()).unwrap();
-                    frag_source = load_shader(frag_path.as_str()).unwrap();
-
                     meta_time= SystemTime::now(); 
 
-                    program = glium::Program::from_source(&display, &vert_source.as_str(), &frag_source.as_str(), None).unwrap();
+                    if let Ok(p) = glium::Program::from_source(&display, &vert_source.as_str(), &frag_source.as_str(), None)
+                    {
+                        program = p;
+                    }
+                    else 
+                    {
+                        println!("ERROR! Shader failed to compile!");   
+                    }
                 }
 
                 window.request_redraw();    
@@ -126,15 +124,18 @@ fn obtain_files() -> (String, String)
     let mut vert_in = String::new();
     let mut frag_in = String::new();
 
-    let mut bad_read = true;
-
     loop
     {    
         vert_in.clear();
-        println!("Please provide path of vertex shader (default: ~/vertex_shader.glsl)");
+        println!("Please provide path of vertex shader (default: ~/shadershader/vertex_shader.glsl)");
     
         io::stdin().read_line(&mut vert_in).unwrap();
         vert_in = expand_tilde(vert_in.trim().to_string());
+
+        if vert_in.is_empty()
+        {
+            vert_in = expand_tilde("~/shadershader/vertex_shader.glsl".to_string());
+        }
 
         if Path::new(&vert_in).is_file()
         {
@@ -150,10 +151,15 @@ fn obtain_files() -> (String, String)
     loop
     {    
         frag_in.clear();
-        println!("Please provide path of frag shader (default: ~/fragment_shader.glsl)");
+        println!("Please provide path of frag shader (default: ~/shadershader/fragment_shader.glsl)");
     
         io::stdin().read_line(&mut frag_in).unwrap();
         frag_in = expand_tilde(frag_in.trim().to_string());
+
+        if frag_in.is_empty()
+        {
+            frag_in = expand_tilde("~/shadershader/fragment_shader.glsl".to_string());
+        }
 
         if Path::new(&frag_in).is_file()
         {
@@ -165,15 +171,6 @@ fn obtain_files() -> (String, String)
         }
     }
     
-    if vert_in == "".to_string()
-    {
-        vert_in = expand_tilde("~/vertex_shader.glsl".to_string());
-    }
-    if frag_in == "".to_string()
-    {
-        frag_in = expand_tilde("~/fragment_shader.glsl".to_string());
-    }
-
     (vert_in, frag_in)
 
 }

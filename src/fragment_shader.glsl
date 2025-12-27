@@ -1,9 +1,13 @@
 #version 330
 
-out vec4 color;
-in vec3 vertex_color;
+out vec4 col;
+in vec2 pos;
+
+uniform float iTime;
+uniform vec3 iResolution;
 
 void main()
 {
-    color = vec4(vertex_color, 1);
+    vec2 uv = pos * 0.5 + 0.5; 
+    col = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
 }
