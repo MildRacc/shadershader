@@ -24,6 +24,13 @@ ShaderShader provides two uniforms:
 
 Any ShaderToy shader that only uses `iTime` and `iResolution` will work out of the box. Just drop your fragment shader code into ShaderShader and it will automatically compile and display.
 
+Flags:
+
+- `-f <path> // Fragment shader path (optional)`
+- `-v <path> // Vertex shader path (optional)`
+
+If you do not include the fragment or vertex flags, you will be prompted in the command-line to enter the paths.
+
 ## Requirements
 
 - Rust

@@ -11,12 +11,68 @@ struct Vertex
 implement_vertex!(Vertex, position);
 
 
+
+fn parse_args() -> Result<(String, String), String> {
+    let args: Vec<String> = env::args().collect();
+    
+    let mut frag_path = String::new();
+    let mut vert_path = String::new();
+    
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-f" => {
+                if i + 1 >= args.len() {
+                    return Err("Error: -f requires a path argument".to_string());
+                }
+                frag_path = args[i + 1].clone();
+                i += 2;
+            }
+            "-v" => {
+                if i + 1 >= args.len() {
+                    return Err("Error: -v requires a path argument".to_string());
+                }
+                vert_path = args[i + 1].clone();
+                i += 2; 
+            }
+            _ => {
+                return Err(format!("Error: Unknown argument '{}'", args[i]));
+            }
+        }
+    }
+    
+    Ok((frag_path, vert_path))
+}
+
+
+
 #[macro_use]
 extern crate glium;
 fn main() {
-    println!("Hello, world!");
 
-    let (vert_path, frag_path) = obtain_files();
+    let mut vert_path = String::new();
+    let mut frag_path = String::new();
+
+    match parse_args()
+    {
+        Ok((f, v)) => (frag_path, vert_path) = (expand_tilde(f.trim().to_string()), expand_tilde(v.trim().to_string())),
+        Err(e) => println!("{e}")
+    }
+
+
+    if vert_path.is_empty() && frag_path.is_empty()
+    {
+        (vert_path, frag_path) = obtain_files();
+    }
+    else if vert_path.is_empty() 
+    {
+        vert_path = obtain_vertex_file();    
+    }
+    else if frag_path.is_empty() 
+    {
+        frag_path = obtain_fragment_file();    
+    }
+
 
     let event_loop = glium::winit::event_loop::EventLoopBuilder::new().build().expect("Event loop building");
     let ( window, display ) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
@@ -107,6 +163,7 @@ fn main() {
 }
 
 
+
 fn load_shader(path: &str) -> Result<String, ErrorKind>
 {
     match fs::read_to_string(path) {
@@ -119,10 +176,11 @@ fn load_shader(path: &str) -> Result<String, ErrorKind>
     };
 }
 
-fn obtain_files() -> (String, String)
+
+
+fn obtain_vertex_file() -> String
 {
     let mut vert_in = String::new();
-    let mut frag_in = String::new();
 
     loop
     {    
@@ -147,7 +205,16 @@ fn obtain_files() -> (String, String)
         }
     }
 
-    
+    vert_in
+
+}
+
+
+
+fn obtain_fragment_file() -> String
+{
+    let mut frag_in = String::new();
+
     loop
     {    
         frag_in.clear();
@@ -170,10 +237,17 @@ fn obtain_files() -> (String, String)
             println!("Path to fragment shader does not exist.");
         }
     }
-    
-    (vert_in, frag_in)
 
+    frag_in
 }
+
+
+
+fn obtain_files() -> (String, String)
+{
+    (obtain_vertex_file(), obtain_fragment_file())
+}
+
 
 
 fn expand_tilde(path: String) -> String
@@ -192,6 +266,7 @@ fn expand_tilde(path: String) -> String
     path
 
 }
+
 
 
 fn check_shader_refresh(vert: &String, frag: &String, time: &mut SystemTime) -> bool
