@@ -139,9 +139,12 @@ fn main() {
             {
                 if check_shader_refresh(&vert_path, &frag_path, &mut meta_time)
                 {
-                    meta_time= SystemTime::now(); 
+                    meta_time = SystemTime::now(); 
 
-                    if let Ok(p) = glium::Program::from_source(&display, &vert_source.as_str(), &frag_source.as_str(), None)
+                    let new_frag = load_shader(&frag_path.as_str()).unwrap_or_default();
+                    let new_vert = load_shader(&vert_path.as_str()).unwrap_or_default();
+
+                        if let Ok(p) = glium::Program::from_source(&display, &new_vert, &new_frag, None)
                     {
                         program = p;
                     }
