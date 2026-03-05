@@ -14,7 +14,24 @@ implement_vertex!(Vertex, position);
 
 fn parse_args() -> Result<(String, String), String> {
     let args: Vec<String> = env::args().collect();
-    
+   
+    if args.contains(&"-h".to_string())
+    {
+        println!(r#"
+        Usage:
+
+        shadershader [options]
+
+        Options:
+
+        -h         How to use shadershader
+        -f <path>  Fragment shader path
+        -v <path>  Vertex Shader path
+        "#);
+
+        return Err(String::new())
+    }
+
     let mut frag_path = String::new();
     let mut vert_path = String::new();
     
@@ -50,13 +67,18 @@ fn parse_args() -> Result<(String, String), String> {
 extern crate glium;
 fn main() {
 
+    if !fs::exists(expand_tilde("~/.config/shadershader/".to_string())).unwrap()
+    {
+        fs::create_dir_all(expand_tilde("~/.config/shadershader/".to_string())).unwrap()
+    }
+
     let mut vert_path = String::new();
     let mut frag_path = String::new();
 
     match parse_args()
     {
         Ok((f, v)) => (frag_path, vert_path) = (expand_tilde(f.trim().to_string()), expand_tilde(v.trim().to_string())),
-        Err(e) => println!("{e}")
+        Err(e) => {println!("{e}"); return}
     }
 
 
@@ -188,14 +210,14 @@ fn obtain_vertex_file() -> String
     loop
     {    
         vert_in.clear();
-        println!("Please provide path of vertex shader (default: ~/shadershader/vertex_shader.glsl)");
+        println!("Please provide path of vertex shader (default: ~/.config/shadershader/vertex_shader.glsl)");
     
         io::stdin().read_line(&mut vert_in).unwrap();
         vert_in = expand_tilde(vert_in.trim().to_string());
 
         if vert_in.is_empty()
         {
-            vert_in = expand_tilde("~/shadershader/vertex_shader.glsl".to_string());
+            vert_in = expand_tilde("~/.config/shadershader/vertex_shader.glsl".to_string());
         }
 
         if Path::new(&vert_in).is_file()
@@ -221,14 +243,14 @@ fn obtain_fragment_file() -> String
     loop
     {    
         frag_in.clear();
-        println!("Please provide path of frag shader (default: ~/shadershader/fragment_shader.glsl)");
+        println!("Please provide path of frag shader (default: ~/.config/shadershader/fragment_shader.glsl)");
     
         io::stdin().read_line(&mut frag_in).unwrap();
         frag_in = expand_tilde(frag_in.trim().to_string());
 
         if frag_in.is_empty()
         {
-            frag_in = expand_tilde("~/shadershader/fragment_shader.glsl".to_string());
+            frag_in = expand_tilde("~/.config/shadershader/fragment_shader.glsl".to_string());
         }
 
         if Path::new(&frag_in).is_file()
