@@ -26,6 +26,7 @@ Any ShaderToy shader that only uses `iTime` and `iResolution` will work out of t
 
 Flags:
 
+- `-h        // List available flags and commands`
 - `-f <path> // Fragment shader path (optional)`
 - `-v <path> // Vertex shader path (optional)`
 
