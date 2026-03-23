@@ -1,5 +1,6 @@
-use glium::{Surface};
-use std::{env, fs::{self, metadata}, io::{self, ErrorKind}, path::{Path, PathBuf}, time::{SystemTime, Instant}};
+use glium::{Surface, glutin::config::ConfigTemplateBuilder};
+use notify::{Event, Watcher};
+use std::{env, fs::{self}, io::{self, ErrorKind}, path::{Path, PathBuf}, sync::mpsc, time::Instant}; 
 
 
 
@@ -67,13 +68,9 @@ fn parse_args() -> Result<(String, String), String> {
 extern crate glium;
 fn main() {
 
-    if !fs::exists(expand_tilde("~/.config/shadershader/".to_string())).unwrap()
-    {
-        fs::create_dir_all(expand_tilde("~/.config/shadershader/".to_string())).unwrap()
-    }
-
-    let mut vert_path = String::new();
-    let mut frag_path = String::new();
+    // Obtain file paths
+    let mut vert_path: String;
+    let mut frag_path: String;
 
     match parse_args()
     {
@@ -96,10 +93,52 @@ fn main() {
     }
 
 
-    let event_loop = glium::winit::event_loop::EventLoopBuilder::new().build().expect("Event loop building");
-    let ( window, display ) = glium::backend::glutin::SimpleWindowBuilder::new().build(&event_loop);
+    if !fs::exists(expand_tilde("~/.config/shadershader/".to_string())).unwrap()
+    {
+        fs::create_dir_all(expand_tilde("~/.config/shadershader/".to_string())).unwrap()
+    }
 
-    window.set_title("ShaderShader");
+    let vert_parent_path = Path::new(&vert_path).parent().unwrap();
+    let frag_parent_path = Path::new(&frag_path).parent().unwrap();
+
+    // Set up watchers
+    let (tx_frag, rx_frag) = mpsc::channel::<notify::Result<Event>>();
+    let (tx_vert, rx_vert) = mpsc::channel::<notify::Result<Event>>();
+
+    let mut frag_watcher = match notify::recommended_watcher(tx_frag)
+    {
+        Ok(watcher) => watcher,
+        Err(e) => {println!("ERROR Failed to construct fragment shader watcher: {e}"); return}
+    };
+    let mut vert_watcher = match notify::recommended_watcher(tx_vert)
+    {
+        Ok(watcher) => watcher,
+        Err(e) => {println!("ERROR Failed to construct vertex shader watcher: {e}"); return}
+    };
+
+    match frag_watcher.watch(Path::new(&frag_parent_path), notify::RecursiveMode::NonRecursive)
+    {
+        Ok(_) => {},
+        Err(e) => {println!("ERROR Failed to watch fragment shader path: {e}"); return}
+    };
+    match vert_watcher.watch(Path::new(&vert_parent_path), notify::RecursiveMode::NonRecursive)
+    {
+        Ok(_) => {},
+        Err(e) => {println!("ERROR failed to watch vertex shader: {e}"); return}
+    }
+
+
+    // The meat and potatoes
+    let event_loop = glium::winit::event_loop::EventLoopBuilder::new().build().expect("Event loop building");
+    let ( window, display ) = glium::backend::glutin::SimpleWindowBuilder::new().with_config_template_builder(
+        ConfigTemplateBuilder::new()
+            .prefer_hardware_accelerated(Some(true))
+            .with_multisampling(2))
+            .with_title("ShaderShader")
+        .build(&event_loop
+    );
+
+    
 
     let vert1 = Vertex { position: [ -1.0, -1.0 ]};
     let vert2 = Vertex { position: [ -1.0,  1.0 ]};
@@ -119,10 +158,12 @@ fn main() {
     let vert_shader = vert_source.as_str();
     let frag_shader = frag_source.as_str();
 
-    let mut meta_time: SystemTime = SystemTime::now(); 
-
-    let mut program = glium::Program::from_source(&display, vert_shader, frag_shader, None).unwrap();
-
+    let mut program = match glium::Program::from_source(&display, vert_shader, frag_shader, None) {
+        Ok(p) => p,
+        Err(e) => {println!("ERROR Failed to compile OpenGL program. Please fix any error before running ShaderShader: {e}"); return},
+    };
+    
+    // Git 'er goin'
     let start_time = Instant::now();
     let _ = event_loop.run(move |event, window_target|
     {
@@ -159,25 +200,38 @@ fn main() {
 
             glium::winit::event::Event::AboutToWait =>
             {
-                if check_shader_refresh(&vert_path, &frag_path, &mut meta_time)
-                {
-                    meta_time = SystemTime::now(); 
 
+                let mut do_refresh = false;
+
+                if let Ok(Ok(event)) = rx_frag.try_recv()
+                {
+                    do_refresh |= event.kind.is_modify() 
+                }
+                if let Ok(Ok(event)) = rx_vert.try_recv()
+                {
+                    do_refresh |= event.kind.is_modify()
+                }
+
+
+                if do_refresh 
+                {
                     let new_frag = load_shader(&frag_path.as_str()).unwrap_or_default();
                     let new_vert = load_shader(&vert_path.as_str()).unwrap_or_default();
 
-                        if let Ok(p) = glium::Program::from_source(&display, &new_vert, &new_frag, None)
+                    if let Ok(p) = glium::Program::from_source(&display, &new_vert, &new_frag, None)
                     {
                         program = p;
                     }
                     else 
                     {
-                        println!("ERROR! Shader failed to compile!");   
+                        println!("ERROR Shader failed to compile!");   
                     }
-                }
-
+                } // if do_redraw
+                
                 window.request_redraw();    
-            },
+
+
+            }, // glium::winit::winit::Event::AboutToWait
 
             _ => (),
         
@@ -289,34 +343,5 @@ fn expand_tilde(path: String) -> String
     }
 
     path
-
-}
-
-
-
-fn check_shader_refresh(vert: &String, frag: &String, time: &mut SystemTime) -> bool
-{
-
-    let vert_met = metadata(vert).unwrap();
-    let frag_met = metadata(frag).unwrap();
-    let mut modified = vert_met.modified().unwrap();
-
-    if modified > *time
-    {
-        *time = modified;
-        return true;
-    }
-
-    modified = frag_met.modified().unwrap();
-
-    if modified > *time
-    {
-        *time = modified;
-        return true;
-    }
-
-
-
-    false
 
 }
